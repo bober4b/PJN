@@ -1,0 +1,4 @@
+.DS_Store
+.idea/misc.xml
+.venv/
+__pycache__/
