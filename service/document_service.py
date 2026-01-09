@@ -25,6 +25,7 @@ class DocumentService:
     _RE_EMAIL = re.compile(r"\b[\w\.-]+@[\w\.-]+\.\w+\b", re.IGNORECASE)
     _RE_HTML = re.compile(r"<[^>]+>")
     _RE_WS = re.compile(r"\s+")
+    _RE_SPECIAL_CHARS = re.compile(r"[^a-zA-Z\s]")
 
     def __init__(self):
         self.documents: list[Document] = []
@@ -110,6 +111,11 @@ class DocumentService:
         lemmatizer = cls._get_lemmatizer()
         tokens = [lemmatizer.lemmatize(t) for t in tokens]
 
+        tokens = [t for t in tokens if len(t) > 2]
+
+        if not tokens:
+            return [] if return_tokens else ""
+
         if return_tokens:
             return tokens
         return " ".join(tokens)
@@ -123,6 +129,10 @@ class DocumentService:
         text = cls._RE_HTML.sub(" ", text)
         text = cls._RE_URL.sub(" ", text)
         text = cls._RE_EMAIL.sub(" ", text)
+
+        # jawne usunięcie znaków specjalnych
+        text = cls._RE_SPECIAL_CHARS.sub(" ", text)
+
         text = cls._RE_WS.sub(" ", text)
         return text.strip()
 
