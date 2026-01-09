@@ -122,8 +122,12 @@ class ModelService:
         TF-IDF na tekstach JUŻ po preprocessingu.
         """
         self.tfidf_vectorizer = TfidfVectorizer(
+            ngram_range=(1, 2),
+            min_df=2,
+            max_df=0.9,
+            sublinear_tf=True,
+            norm="l2",
             lowercase=False,
-            stop_words=None
         )
 
         contents = [d.content for d in self.documents]

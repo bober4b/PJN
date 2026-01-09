@@ -21,7 +21,6 @@ def get_model_service(doc_service):
 
     model_service = ModelService(doc_service.documents)
 
-    # NAZWY MUSZĄ PASOWAĆ 1:1 do ModelService
     model_service.load_doc2vec()
     model_service.load_tfidf()
 
