@@ -11,7 +11,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from service.document_service import DocumentService
 
-
 class ModelService:
     DOC2VEC_MODEL_PATH = "data/doc2vec.model"
     DOC2VEC_VECTORS_PATH = "data/doc2vec_vectors.json"
@@ -19,6 +18,7 @@ class ModelService:
 
     def __init__(self, documents):
         self.documents = documents
+        self.document_metadata = {d.name: d.category for d in documents}
         self.document_names = [d.name for d in documents]
 
         self.doc2vec_model = None
@@ -46,11 +46,12 @@ class ModelService:
         self.doc2vec_model = Doc2Vec(
             vector_size=300,
             window=10,
-            min_count=2,
+            min_count=1,
             workers=4,
-            epochs=120,
-            dm=1,
-            negative=10
+            epochs=200,
+            dm=0,
+            dbow_words=1,
+            seed=42
         )
 
         self.doc2vec_model.build_vocab(tagged_docs)
@@ -94,21 +95,26 @@ class ModelService:
         with open(self.DOC2VEC_VECTORS_PATH, "r", encoding="utf-8") as f:
             self.doc_vectors = json.load(f)
 
-    def search_doc2vec(self, query: str, top_n: int = 5):
+    def search_doc2vec(self, query: str, top_n: int = 5, category: str = "Wszystkie"):
         if self.doc2vec_model is None:
             raise RuntimeError("Doc2Vec nie jest załadowany.")
 
         query_processed = DocumentService.preprocess_text(query)
         query_tokens = query_processed.split()
 
-        query_vector = self.doc2vec_model.infer_vector(query_tokens)
+        query_vector = self.doc2vec_model.infer_vector(query_tokens, epochs=100)
 
         results = []
         for name, vec in self.doc_vectors.items():
+            # Filtrowanie po kategorii
+            if category != "Wszystkie" and self.document_metadata.get(name) != category:
+                continue
+
             sim = cosine_similarity(
                 [query_vector],
                 [vec]
             )[0][0]
+
             results.append((name, round(float(sim), 4)))
 
         return sorted(results, key=lambda x: -x[1])[:top_n]
@@ -123,8 +129,8 @@ class ModelService:
         """
         self.tfidf_vectorizer = TfidfVectorizer(
             ngram_range=(1, 2),
-            min_df=2,
-            max_df=0.9,
+            min_df=1,
+            max_df=0.8,
             sublinear_tf=True,
             norm="l2",
             lowercase=False,
@@ -152,7 +158,7 @@ class ModelService:
         )
         print("Model TF-IDF wczytany.")
 
-    def search_tfidf(self, query: str, top_n: int = 5):
+    def search_tfidf(self, query: str, top_n: int = 5, category: str = "Wszystkie"):
         if self.tfidf_vectorizer is None:
             raise RuntimeError("TF-IDF nie jest załadowany.")
 
@@ -160,9 +166,14 @@ class ModelService:
         query_vector = self.tfidf_vectorizer.transform([query_processed])
 
         sims = cosine_similarity(query_vector, self.tfidf_matrix).flatten()
-        top_idx = np.argsort(sims)[::-1][:top_n]
+        
+        results = []
+        for i, name in enumerate(self.document_names):
+            # Filtrowanie po kategorii
+            if category != "Wszystkie" and self.document_metadata.get(name) != category:
+                continue
+            
+            sim = sims[i]
+            results.append((name, round(float(sim), 4)))
 
-        return [
-            (self.document_names[i], round(float(sims[i]), 4))
-            for i in top_idx
-        ]
+        return sorted(results, key=lambda x: -x[1])[:top_n]

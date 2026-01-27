@@ -20,7 +20,7 @@ class DocumentService:
     DOCS_STATUS_FILE = "data/docs_status.json"
     FILE_EXTENSIONS = (".txt",)
 
-    # proste regexy do czyszczenia szumu
+    # regexy do czyszczenia szumu
     _RE_URL = re.compile(r"(https?://\S+|www\.\S+)", re.IGNORECASE)
     _RE_EMAIL = re.compile(r"\b[\w\.-]+@[\w\.-]+\.\w+\b", re.IGNORECASE)
     _RE_HTML = re.compile(r"<[^>]+>")
@@ -49,17 +49,65 @@ class DocumentService:
             path = os.path.join(self.DOCS_DIR_PATH, file)
             content = self._read_file(path)
             processed_content = self.preprocess_text(content)
+            category = self._detect_category(content)
 
             self.documents.append(
                 Document(
                     name=file,
                     mod_date=os.path.getmtime(path),
-                    content=processed_content
+                    content=processed_content,
+                    category=category
                 )
             )
 
         self._save_files_status(files)
         return self.documents
+
+    def _detect_category(self, text: str) -> str:
+        """
+        Zaawansowana kategoryzacja oparta na wagach słów kluczowych.
+        """
+        text_lower = text.lower()
+        
+        categories = {
+            "Naukowe/Medyczne": [
+                "research", "study", "scientific", "clinical", "trial", "vaccine", "medical", 
+                "health", "disease", "patient", "virus", "data", "analysis", "university"
+            ],
+            "Marketingowe/Biznesowe": [
+                "marketing", "business", "sales", "company", "brand", "advertising", "product", 
+                "revenue", "profit", "investment", "finance", "startup", "industry", "market"
+            ],
+            "Polityczne/Prawne": [
+                "politics", "political", "government", "election", "vote", "senate", "congress", 
+                "court", "judge", "justice", "law", "legislation", "attorney", "panel", "committee"
+            ],
+            "Rozrywka/Kultura": [
+                "movie", "film", "actor", "director", "music", "concert", "star", "celebrity", 
+                "art", "entertainment", "hollywood", "premiere", "protagonist", "porn"
+            ],
+            "Sport": [
+                "sport", "team", "match", "game", "tournament", "athlete", "player", "coach", 
+                "stadium", "football", "basketball", "golf", "baseball", "crash", "fatal"
+            ]
+        }
+        
+        scores = {cat: 0 for cat in categories}
+        
+        # Punktacja: każde wystąpienie słowa kluczowego zwiększa wynik kategorii
+        for category, keywords in categories.items():
+            for word in keywords:
+                # Liczymy wystąpienia, aby wyłapać dominujący temat
+                scores[category] += text_lower.count(word)
+        
+        # Wybieramy kategorię z najwyższym wynikiem
+        best_category = max(scores, key=scores.get)
+        
+        # Jeśli brak wyraźnych słów kluczowych (wynik 0), zwróć Ogólne
+        if scores[best_category] == 0:
+            return "Ogólne/Informacyjne"
+            
+        return best_category
 
     def has_changes(self) -> bool:
         """
@@ -111,7 +159,8 @@ class DocumentService:
         lemmatizer = cls._get_lemmatizer()
         tokens = [lemmatizer.lemmatize(t) for t in tokens]
 
-        tokens = [t for t in tokens if len(t) > 2]
+        # Pozwalamy na słowa 2-literowe (np. US, 6, EU)
+        tokens = [t for t in tokens if len(t) >= 2]
 
         if not tokens:
             return [] if return_tokens else ""
@@ -144,7 +193,7 @@ class DocumentService:
     def _ensure_nltk_resources() -> None:
         """
         Minimalny zestaw zasobów potrzebny do:
-        - stopwords (nltk.corpus.stopwords)
+        - stopwords
         - WordNet lemmatizer
         """
         required = [

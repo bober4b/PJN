@@ -136,18 +136,21 @@ def documents_view():
         return
 
     for doc in docs:
-        col1, col2, col3 = st.columns([4, 3, 1])
+        col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
 
         with col1:
             st.write(doc.name)
 
         with col2:
+            st.info(doc.category)
+
+        with col3:
             st.write(
                 datetime.fromtimestamp(doc.mod_date)
                 .strftime("%Y-%m-%d %H:%M")
             )
 
-        with col3:
+        with col4:
             st.button(
                 "Otwórz",
                 key=f"{doc.name}_open",
@@ -162,6 +165,23 @@ def documents_view():
 
 st.header("🔍 Wyszukiwanie dokumentów")
 
+with st.sidebar:
+    st.header("⚙️ Preferencje wyszukiwania")
+    selected_category = st.selectbox(
+        "Typ dokumentu",
+        options=[
+            "Wszystkie", 
+            "Naukowe/Medyczne", 
+            "Marketingowe/Biznesowe", 
+            "Polityczne/Prawne", 
+            "Rozrywka/Kultura", 
+            "Sport", 
+            "Ogólne/Informacyjne"
+        ]
+    )
+    
+    top_n = st.number_input("Maksymalna liczba wyników", min_value=1, max_value=20, value=5)
+
 init_model()
 
 if st.session_state.need_retrain:
@@ -172,14 +192,18 @@ if st.session_state.mod_service is None:
     st.info("Model nie jest gotowy.")
     st.stop()
 
-query = st.text_input("Wprowadź słowa kluczowe")
+query = st.text_input("Wprowadź zapytanie")
 
-if st.button("Zatwierdź") and query.strip():
+if st.button("Szukaj") and query.strip():
     st.session_state.search_doc2vec = (
-        st.session_state.mod_service.search_doc2vec(query, 5)
+        st.session_state.mod_service.search_doc2vec(
+            query, top_n=top_n, category=selected_category
+        )
     )
     st.session_state.search_tfidf = (
-        st.session_state.mod_service.search_tfidf(query, 5)
+        st.session_state.mod_service.search_tfidf(
+            query, top_n=top_n, category=selected_category
+        )
     )
 
 # =====================
